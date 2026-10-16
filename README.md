@@ -1,0 +1,1 @@
+# Electrical-competition-function-encapsulation
