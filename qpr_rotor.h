@@ -8,7 +8,7 @@ extern "C" {
 #define QPR_KP          0.1f
 #define QPR_KR          30.0f
 #define QPR_WC_RAD_S    5.0f
-#define QPR_TS_S        (1.0f / 20000.0f)
+// #define QPR_TS_S        (1.0f / 20000.0f)通过软件内部主频除以中断周期获得
 #define QPR_LOWER       (-5.0f)
 #define QPR_UPPER       5.0f
 

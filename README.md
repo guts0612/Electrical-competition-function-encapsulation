@@ -13,7 +13,7 @@
 | QPR 控制 | [qpr_control.h](qpr_control.h) / [qpr_control.c](qpr_control.c) | 虚拟阻抗电压外环、QPR 电流内环、开环调制及独立电流环 |
 | JustFloat 通信 | [justfloat.h](justfloat.h) / [justfloat.c](justfloat.c) | 八通道波形发送、抽点、最新帧邮箱、电压总 RMS 和发送统计 |
 | 按键 | [key_control.h](key_control.h) / [key_control.c](key_control.c) | PE0 / PB9 / PE2 消抖、松手事件及原工程控制动作 |
-| 单机倍频 SPWM | [hrtim_spwm.h](hrtim_spwm.h) / [hrtim_spwm.c](hrtim_spwm.c) | HRTIM Master、Timer A/B 同步启动、调制度更新与输出管理 |
+| 单极倍频 SPWM | [Unipolar Frequency-Doubling PWM.h](<Unipolar Frequency-Doubling PWM.h>) / [Unipolar Frequency-Doubling PWM.c](<Unipolar Frequency-Doubling PWM.c>) | HRTIM Master、Timer A/B 同步启动、调制度更新与输出管理 |
 | 差分 ADC | [adc_diff.h](adc_diff.h) / [adc_diff.c](adc_diff.c) | 双 ADC 同步差分采样、校准、DMA、物理量换算与快照读取 |
 
 各模块按需选用。JustFloat 接收调用方传入的物理量，能够配合其他控制器使用；QPR 本身也不访问 ADC、PWM 或 UART。
@@ -25,7 +25,7 @@
 | `qpr_control` | 标准 C 头文件；控制参数集中在 `qpr_control.h` |
 | `justfloat` | STM32G4 HAL UART、CMSIS 内核接口，以及提供 `arm_math.h` / `arm_sqrt_f32` 的 CMSIS-DSP 配置 |
 | `key_control` | 目标工程的 `main.h`、HAL GPIO / Tick 和 CMSIS 内核接口；引脚读取集中在 `KeyControl_GetState()` |
-| `hrtim_spwm` | STM32G4 HAL HRTIM 及对应寄存器定义 |
+| 单极倍频 SPWM | STM32G4 HAL HRTIM 及对应寄存器定义 |
 | `adc_diff` | STM32G4 HAL ADC / DMA 及对应寄存器定义 |
 
 CubeMX 继续负责时钟、GPIO、DMA、NVIC、HAL 句柄和 `MX_*_Init()` 等基础初始化。更换芯片或功率板时，需要核对外设能力、触发路径、引脚、死区和反馈标定。
@@ -150,16 +150,30 @@ if (event == KEYCONTROL_EVENT_PE2)
 
 启动时已按住的按键需要先松开再重新按下。待处理事件按 PE0 → PB9 → PE2 的顺序返回，同一键尚未消费的重复事件会合并。
 
-## 单机倍频 SPWM
+## 单极倍频 SPWM
 
-`hrtim_spwm` 只管理 HRTIM **Master、Timer A/B 和 TA1/TA2/TB1/TB2**，提供一个调制度入口：
+`Unipolar Frequency-Doubling PWM.c/.h` 只管理 HRTIM **Master、Timer A/B 和 TA1/TA2/TB1/TB2**，提供一个调制度入口：
 
 ```c
 HAL_StatusTypeDef HRTIM_SetModulation(HRTIM_SPWM_Context *context,
                                      float modulation);
 ```
 
-调制关系为 `dA = (1 + m) / 2`、`dB = (1 - m) / 2`。两路比较值成对更新，在共同载波谷底生效。
+调制关系为 `dA = (1 + m) / 2`、`dB = (1 - m) / 2`。两路比较值成对更新，在共同载波谷底生效。这里的 `m` 是当前控制拍带正负号的瞬时调制指令；如果开环输出正弦波，应在模块外计算 `m = M * sin(theta)`，再传入本接口。
+
+| 对外函数 | 作用 |
+| --- | --- |
+| `HRTIM_SPWM_DefaultConfig` | 填入默认配置；不访问硬件。默认参数集中在头文件，可在调用后修改配置字段。 |
+| `HRTIM_SPWM_Init` | 配置Master/A/B时基、互补输出、死区、预装载和ADC触发；保持计数停止、输出关闭。 |
+| `HRTIM_SPWM_StartCounters` | 一次寄存器写入同步启动Master/A/B；开始产生ADC触发，仍保持输出关闭。 |
+| `HRTIM_SetModulation` | 限幅m，计算两桥臂占空比，四舍五入并保护比较值端点，成对写入预装载。 |
+| `HRTIM_SPWM_EnableOutputs` | 计数已运行时打开TA1/TA2/TB1/TB2输出。 |
+| `HRTIM_SPWM_DisableOutputs` | 关闭四路输出，保持计数和ADC触发，便于暂停后恢复。 |
+| `HRTIM_SPWM_Stop` | 先关闭输出，再停止Master/A/B；停止后不能直接重新启动。 |
+
+初始化配置与启动分开，便于先准备ADC/DMA和控制器，再运行采样。计数启动与输出使能分开，便于先确认采样有效和运行条件，再打开功率输出。正常控制循环只需调用 `HRTIM_SetModulation()`。
+
+实现中的 `SPWM_IsReady`、`SPWM_CanStart`、`SPWM_Clamp`、`SPWM_DutyToCompare` 和 `SPWM_ConfigureHardware` 都是内部辅助函数，应用无需调用；分别集中处理就绪检查、启动条件、限幅、占空比换算和底层配置。`SPWM_TRY` 是初始化阶段的HAL错误返回宏。
 
 典型顺序：
 

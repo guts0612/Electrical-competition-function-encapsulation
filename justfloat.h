@@ -42,20 +42,25 @@ typedef struct
 {
     UART_HandleTypeDef *uart;
     volatile uint8_t initialized;
+
     volatile float channels[JUSTFLOAT_CHANNEL_COUNT];
     volatile uint8_t frame_ready;
+
     volatile uint32_t sample_div_count;
     volatile uint32_t sent_count;
     volatile uint32_t tx_error_count;
     volatile uint32_t overwrite_count;
+
     volatile float output_voltage_rms_v;
     volatile uint8_t output_voltage_rms_valid;
     volatile uint32_t output_voltage_rms_window_count;
+
     uint32_t output_voltage_rms_window_samples;
     float rms_square_sum;
     float rms_scale;
     uint32_t rms_count;
     uint8_t rms_mode;
+
     uint8_t frame[JUSTFLOAT_FRAME_BYTES];
 } JustFloat_Context;
 
@@ -64,8 +69,10 @@ typedef struct
  * 成功返回1；空串口句柄、非有限/非正频率或无效窗口返回0并禁用本实例。
  * 重初始化须先停止 Sample/Process；未初始化的零值实例安全不操作。
  */
-uint8_t JustFloat_Init(JustFloat_Context *context, UART_HandleTypeDef *uart,
-                       float sample_hz, float fundamental_hz);
+uint8_t JustFloat_Init(JustFloat_Context *context,
+                       UART_HandleTypeDef *uart,
+                       float sample_hz,
+                       float fundamental_hz);
 
 /* ADC配齐且控制计算完成后，每拍调用一次；只累加/发布数据，不发送串口。
  * closed_loop 传入与本拍控制使用的同一0/1快照。
@@ -75,7 +82,8 @@ uint8_t JustFloat_Init(JustFloat_Context *context, UART_HandleTypeDef *uart,
  * 不提供均值输出模式；开闭环切换时重新开始RMS窗口。
  */
 void JustFloat_Sample(JustFloat_Context *context,
-                      const JustFloat_SampleData *sample, uint8_t closed_loop);
+                      const JustFloat_SampleData *sample,
+                      uint8_t closed_loop);
 
 /* 主循环反复调用。PRIMASK保护一次八通道快照，随后恢复原中断状态，
  * 同步HAL发送36字节。默认5ms超时；失败计数后丢帧，不重试。
@@ -88,8 +96,14 @@ void JustFloat_Process(JustFloat_Context *context);
  * 返回HAL发送状态；空/未初始化实例返回HAL_ERROR，不计入发送次数。
  */
 HAL_StatusTypeDef JustFloat_Send8(JustFloat_Context *context,
-                                float ch1, float ch2, float ch3, float ch4,
-                                float ch5, float ch6, float ch7, float ch8);
+                                  float ch1,
+                                  float ch2,
+                                  float ch3,
+                                  float ch4,
+                                  float ch5,
+                                  float ch6,
+                                  float ch7,
+                                  float ch8);
 
 #ifdef __cplusplus
 }

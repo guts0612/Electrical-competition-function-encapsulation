@@ -6,7 +6,7 @@
 
 | 文件 | 职责 |
 |---|---|
-| `hrtim_spwm.c/.h` | 仅 MASTER、Timer A/B 的单极倍频调制、时基与同步配置、计数启动、四路输出使能/关闭 |
+| `Unipolar Frequency-Doubling PWM.c/.h` | 仅 MASTER、Timer A/B 的单极倍频调制、时基与同步配置、计数启动、四路输出使能/关闭 |
 | `adc_diff.c/.h` | 一对双同步差分 ADC 的校验、校准、循环 DMA、回调处理、换算、快照与统计 |
 
 这些模块尚未接入当前固件。本次提取不修改 `Core`、`Hardware`、Keil 项目或 `.ioc`；现有文件中的用户修改保留。它们面向 STM32G474 和当前 STM32G4 HAL，不是跨 MCU 的通用驱动。
@@ -81,7 +81,7 @@ value          = adc_voltage_v * physical_gain - physical_offset;
 上下文必须是静态变量或先用 `{0}` 初始化。将下面声明放在应用文件中：
 
 ```c
-#include "hrtim_spwm.h"
+#include "Unipolar Frequency-Doubling PWM.h"
 #include "adc_diff.h"
 
 static HRTIM_SPWM_Context pwm;
